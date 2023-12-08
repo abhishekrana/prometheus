@@ -1,0 +1,49 @@
+version: "3"
+
+env:
+  BUILD_CACHE: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+  DOCKER_BUILDKIT: 1
+
+vars:
+  BUILD_TYPE: "'{{if .BUILD_TYPE}}{{.BUILD_TYPE}}{{else}}dev-test{{end}}"
+  REGISTRY: "registry.localhost"
+  GIT_HASH:
+    sh: git log -1 --format=%h
+  GIT_TAG:
+    sh: git describe --tags --always
+
+tasks:
+  # Build ------------------------------------
+  build-python-service:
+    desc: Build Python Service
+    cmds:
+      - |
+        docker -l warn build \
+        {{- if not .BUILD_CACHE }}--no-cache \{{end}}
+        --build-arg BUILD_TYPE={{.BUILD_TYPE}} \
+        --build-arg GIT_HASH={{.GIT_HASH}} \
+        --build-arg GIT_TAG={{.GIT_TAG}} \
+        --target {{.BUILD_TYPE}} \
+        --tag {{.REGISTRY}}/python-service:latest \
+        --file Dockerfile .
+
+  run-python-service:
+    desc: Run Python Service
+    deps: [build-python-service]
+    cmds:
+      - |
+        docker run -it --rm --network="host" \
+        {{.REGISTRY}}/python-service:latest
+
+  # Misc ------------------------------------
+  poetry-lock:
+    desc: Generate poetry.lock
+    deps: [build-python-service]
+    cmds:
+      - docker run --rm
+        -u $(id -u):$(id -g)
+        --workdir /workspace/python-service
+        -v ${PWD}:/workspace/python-service
+        {{.REGISTRY}}/python-service
+        bash -c "poetry lock"
