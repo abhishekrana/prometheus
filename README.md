@@ -1,4 +1,4 @@
-# prometheus
+# prometheus-client
 
 ## Start prometheus and python client
 
